@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>音声認識でM5を鳴らす</title>
+</head>
+<body>
+  <h1>音声認識で M5StickC Plus2 を鳴らす</h1>
+  <button id="connect">M5に接続</button>
+  <button id="start">音声認識スタート</button>
+  <p id="status">未接続</p>
+  <p id="result"></p>
+
+  <script>
+    let characteristic;
+
+    // ==== BLE接続 ====
+    document.getElementById("connect").onclick = async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "M5-BLE-Player" }],
+          optionalServices: ["12345678-1234-1234-1234-1234567890ab"]
+        });
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService("12345678-1234-1234-1234-1234567890ab");
+        characteristic = await service.getCharacteristic("abcdefab-1234-5678-90ab-abcdefabcdef");
+
+        document.getElementById("status").innerText = "接続済み";
+      } catch (e) {
+        console.error(e);
+        document.getElementById("status").innerText = "接続失敗";
+      }
+    };
+
+    // ==== 音声認識 ====
+    document.getElementById("start").onclick = () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("このブラウザは音声認識に対応していません");
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = "ja-JP"; // 日本語
+      recognition.continuous = true; // 継続認識
+      recognition.interimResults = false;
+
+      recognition.onresult = async (event) => {
+        const text = event.results[event.results.length - 1][0].transcript;
+        document.getElementById("result").innerText = "認識結果: " + text;
+        console.log("認識:", text);
+
+        if (text.includes("たま")) {
+          document.getElementById("status").innerText = "『タマ』を認識 → M5に送信";
+          if (characteristic) {
+            const encoder = new TextEncoder();
+            await characteristic.writeValue(encoder.encode("1"));
+          }
+        }
+      };
+
+      recognition.start();
+      document.getElementById("status").innerText = "音声認識中…";
+    };
+  </script>
+</body>
+</html>
